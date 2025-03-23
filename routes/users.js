@@ -5,11 +5,33 @@ const db = require("../db");
 // Validate data
 function validateUser(req, res, next) {
   const { name, email, age } = req.body;
-  if (!name || !email || age === undefined) {
-    return res.status(400).json({ error: "name, email, and age are required." });
-  }
+  if (!name || typeof name !== "string") return res.status(400).json({ error: "Invalid name" });
+  if (!email || !/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: "Invalid email" });
+  if (age === undefined || typeof age !== "number") return res.status(400).json({ error: "Invalid age" });
   next();
 }
+
+router.post("/", validateUser, async (req, res, next) => {
+  try {
+    const { name, email, age } = req.body;
+
+    const [result] = await req.db.execute(
+      "INSERT INTO users (name, email, age) VALUES (?, ?, ?)",
+      [name, email, age]
+    );
+    res.status(201).json({ id: result.insertId, name, email, age });
+  } catch (err) {
+    if (err.code === "ER_DUP_ENTRY") {
+      err.status = 400;
+      err.message = "Email already exists.";
+    } else {
+      err.status = 500;
+    }
+    next(err);
+  }
+});
+
+module.exports = router;
 
 // POST /users
 router.post("/", validateUser, async (req, res, next) => {
